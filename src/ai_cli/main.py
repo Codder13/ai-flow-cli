@@ -39,6 +39,7 @@ except ImportError:
 
 CONFIG_DIR = Path.home() / ".config" / "ai"
 CONFIG_FILE = CONFIG_DIR / "config.json"
+CACHE_DIR = Path.home() / ".cache" / "ai" / "sessions"
 
 LATEX_SYSTEM_PROMPT = (
     "Formatting instructions: For mathematical equations, display formulas, or matrices, "
@@ -48,8 +49,84 @@ LATEX_SYSTEM_PROMPT = (
 )
 
 
-def build_pi_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[str]:
-    cmd = ["pi", "-p", "--no-session"]
+def get_terminal_session_key() -> str:
+    """Get unique key identifying current terminal session / tab."""
+    # 1. Multiplexer or terminal window variables
+    for var in ("KITTY_WINDOW_ID", "WEZTERM_PANE", "TMUX_PANE", "HERDR_PANE_ID", "WINDOWID"):
+        val = os.environ.get(var)
+        if val:
+            safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in val)
+            return f"{var.lower()}_{safe}"
+
+    # 2. Parent tty from proc
+    ppid = os.getppid()
+    for fd in (0, 1, 2):
+        try:
+            target = os.readlink(f"/proc/{ppid}/fd/{fd}")
+            if target.startswith("/dev/"):
+                safe = target[5:].replace("/", "_")
+                return f"tty_{safe}"
+        except Exception:
+            pass
+
+    # 3. Process sid or ppid fallback
+    try:
+        sid = os.getsid(ppid)
+        return f"sid_{sid}"
+    except Exception:
+        return f"ppid_{ppid}"
+
+
+def get_terminal_session_dir(harness_name: str) -> str:
+    """Return directory where session files for current terminal tab are kept."""
+    key = get_terminal_session_key()
+    session_dir = str(CACHE_DIR / harness_name / key)
+    os.makedirs(session_dir, exist_ok=True)
+    return session_dir
+
+
+def clear_terminal_session() -> None:
+    """Clear session history for current terminal tab across all harnesses."""
+    key = get_terminal_session_key()
+    if CACHE_DIR.is_dir():
+        for harness_dir in CACHE_DIR.iterdir():
+            if harness_dir.is_dir():
+                target = harness_dir / key
+                if target.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+
+
+def has_existing_session(session_dir: str) -> bool:
+    """Check if session directory contains any saved session files."""
+    try:
+        if not os.path.isdir(session_dir):
+            return False
+        entries = os.listdir(session_dir)
+        return any(not e.startswith(".") for e in entries)
+    except Exception:
+        return False
+
+
+def build_pi_cmd(
+    model: Optional[str],
+    enable_tools: bool,
+    prompt: str,
+    session_mode: str = "auto",
+) -> List[str]:
+    cmd = ["pi", "-p"]
+    session_dir = get_terminal_session_dir("pi")
+
+    if session_mode == "none":
+        cmd.append("--no-session")
+    elif session_mode == "new":
+        shutil.rmtree(session_dir, ignore_errors=True)
+        os.makedirs(session_dir, exist_ok=True)
+        cmd.extend(["--session-dir", session_dir])
+    else:  # auto
+        cmd.extend(["--session-dir", session_dir])
+        if has_existing_session(session_dir):
+            cmd.append("-c")
+
     if not enable_tools:
         cmd.append("--no-tools")
     cmd.extend(["--append-system-prompt", LATEX_SYSTEM_PROMPT])
@@ -59,8 +136,26 @@ def build_pi_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[
     return cmd
 
 
-def build_omp_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[str]:
-    cmd = ["omp", "-p", "--no-session"]
+def build_omp_cmd(
+    model: Optional[str],
+    enable_tools: bool,
+    prompt: str,
+    session_mode: str = "auto",
+) -> List[str]:
+    cmd = ["omp", "-p"]
+    session_dir = get_terminal_session_dir("omp")
+
+    if session_mode == "none":
+        cmd.append("--no-session")
+    elif session_mode == "new":
+        shutil.rmtree(session_dir, ignore_errors=True)
+        os.makedirs(session_dir, exist_ok=True)
+        cmd.extend(["--session-dir", session_dir])
+    else:  # auto
+        cmd.extend(["--session-dir", session_dir])
+        if has_existing_session(session_dir):
+            cmd.append("-c")
+
     if not enable_tools:
         cmd.append("--no-tools")
     else:
@@ -72,8 +167,18 @@ def build_omp_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List
     return cmd
 
 
-def build_claude_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[str]:
-    cmd = ["claude", "-p", "--no-session-persistence"]
+def build_claude_cmd(
+    model: Optional[str],
+    enable_tools: bool,
+    prompt: str,
+    session_mode: str = "auto",
+) -> List[str]:
+    cmd = ["claude", "-p"]
+    if session_mode == "none":
+        cmd.append("--no-session-persistence")
+    elif session_mode == "auto":
+        cmd.append("-c")
+
     if not enable_tools:
         cmd.extend(["--tools", ""])
     else:
@@ -85,8 +190,16 @@ def build_claude_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> L
     return cmd
 
 
-def build_codex_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[str]:
-    cmd = ["codex", "exec", "--ephemeral"]
+def build_codex_cmd(
+    model: Optional[str],
+    enable_tools: bool,
+    prompt: str,
+    session_mode: str = "auto",
+) -> List[str]:
+    cmd = ["codex", "exec"]
+    if session_mode == "none":
+        cmd.append("--ephemeral")
+
     if not enable_tools:
         cmd.extend(["--sandbox", "read-only"])
     else:
@@ -97,8 +210,15 @@ def build_codex_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> Li
     return cmd
 
 
-def build_copilot_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[str]:
+def build_copilot_cmd(
+    model: Optional[str],
+    enable_tools: bool,
+    prompt: str,
+    session_mode: str = "auto",
+) -> List[str]:
     cmd = ["copilot", "-p", f"{LATEX_SYSTEM_PROMPT}\n\n{prompt}", "--silent"]
+    if session_mode == "auto":
+        cmd.append("--continue")
     if enable_tools:
         cmd.append("--allow-all")
     if model:
@@ -106,8 +226,15 @@ def build_copilot_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> 
     return cmd
 
 
-def build_opencode_cmd(model: Optional[str], enable_tools: bool, prompt: str) -> List[str]:
+def build_opencode_cmd(
+    model: Optional[str],
+    enable_tools: bool,
+    prompt: str,
+    session_mode: str = "auto",
+) -> List[str]:
     cmd = ["opencode", "run"]
+    if session_mode == "auto":
+        cmd.append("-c")
     if enable_tools:
         cmd.append("--auto")
     if model:
@@ -278,73 +405,73 @@ def resolve_harness(cli_harness: Optional[str], console: Optional[Any] = None) -
     cfg = load_config()
     configured_harness = cfg.get("harness")
     if configured_harness and configured_harness in HARNESS_REGISTRY:
-        if shutil.which(configured_harness):
-            return configured_harness
-        # If configured harness is missing from PATH, notify user
-        sys.stderr.write(
-            f"Warning: Configured harness '{configured_harness}' not found in PATH.\n"
-        )
-
-    # 3. If TTY and not configured, launch wizard if multiple harnesses or ask user
-    installed = detect_installed_harnesses()
-    if sys.stdin.isatty():
-        if not configured_harness:
-            # Wizard on first run or when no harness configured
-            return run_harness_wizard(console=console, current_harness=None)
-
-    # 4. Fallback: first installed harness, or configured, or pi/omp
-    if configured_harness:
         return configured_harness
-    if installed:
-        return installed[0]
 
+    # 3. Fallback: pick first installed from preference list, or prompt wizard
+    preference = ["pi", "omp", "claude", "codex", "copilot", "opencode"]
+    for p in preference:
+        if shutil.which(p):
+            return p
+
+    # If interactive and nothing found/configured, ask via wizard
+    if sys.stdin.isatty():
+        return run_harness_wizard(console=console)
+
+    # Last resort fallback
     return "pi"
 
 
 def print_help() -> None:
-    supported_list = ", ".join(HARNESS_REGISTRY.keys())
-    help_text = f"""ai - Fast terminal AI wrapper around local agent harnesses
+    supported = ", ".join(HARNESS_REGISTRY.keys())
+    help_text = f"""ai - Fast terminal AI for questions, pipelines & code assistance
 
 Usage:
-  ai <prompt>                      Ask question / prompt
-  ai "multi word prompt"           Ask question
-  echo "data" | ai <prompt>        Pipe stdin context into prompt
-  ai --help, -h                    Show this help
-  ai --wizard                      Interactive harness setup wizard
-  ai --harness <name> <prompt>     Use specific harness ({supported_list})
-  ai --raw <prompt>                Print plain text without markdown styling
-  ai --tools <prompt>              Run with tool execution enabled
-  ai --model <name> <prompt>       Specify model override
+  ai <question or prompt>
+  ai [options] <question or prompt>
+  cat file | ai <question or prompt>
+  git diff | ai "review these changes"
 
-Features:
-  - Supports multiple harnesses: {supported_list}
-  - Auto-detection and interactive first-run wizard
-  - Persistent harness preference in ~/.config/ai/config.json
-  - Rich terminal markdown rendering with code syntax highlighting
-  - Pure PDF/LaTeX math rendering in supported terminals (Kitty graphics)
-  - Clean Unicode unit conversion (e.g. ~21,196 km, ~200 km²)
-  - Unix pipeline friendly (clean stdout passthrough when piped)
+Options:
+  --raw                  Output raw text directly without markdown rendering
+  --tools                Enable tool execution / auto-approval in the harness
+  --new                  Start a new session for this terminal (wipe previous context)
+  --no-session           Run ephemerally without persisting or resuming session history
+  --clear                Clear session history for current terminal tab and exit
+  -H, --harness <name>   Use specific harness ({supported})
+  --wizard               Interactive selector to choose and save default harness
+  -m, --model <name>     Specify model name override
+  -h, --help             Show this help message
+
+Session Persistence:
+  Queries in the same terminal tab/pane automatically share context.
+  Use --new or --clear to reset, or --no-session for one-off ephemeral questions.
 
 Examples:
-  ai what is the biggest object on earth
+  ai "how do I extract a .tar.gz file?"
+  ai "what was the command you just suggested?"
+  ai --new "start a completely different topic"
+  cat main.py | ai "explain what this code does"
+  git diff | ai "write a concise commit message for this diff"
+  ai -H claude "how to optimize this query?"
   ai --wizard
-  ai --harness claude "review recent commit"
-  ai show me the quadratic formula
-  git diff | ai review these changes
-  cat server.log | ai find error root cause
 """
     print(help_text)
 
 
 def main() -> None:
     args = sys.argv[1:]
-
     console = Console() if HAS_RICH else None
 
-    # Check for wizard flag first
-    if any(arg in ("--wizard", "--setup") for arg in args):
+    # Check for wizard flag immediately
+    if "--wizard" in args:
         cfg = load_config()
         run_harness_wizard(console=console, current_harness=cfg.get("harness"))
+        sys.exit(0)
+
+    # Check for clear session flag
+    if "--clear" in args:
+        clear_terminal_session()
+        print("Session cleared for this terminal.")
         sys.exit(0)
 
     if not args and sys.stdin.isatty():
@@ -359,6 +486,7 @@ def main() -> None:
     # Parse our custom options
     raw_mode = False
     enable_tools = False
+    session_mode = "auto"
     model_override = None
     cli_harness = None
     prompt_words = []
@@ -371,6 +499,12 @@ def main() -> None:
             i += 1
         elif arg == "--tools":
             enable_tools = True
+            i += 1
+        elif arg == "--new":
+            session_mode = "new"
+            i += 1
+        elif arg == "--no-session":
+            session_mode = "none"
             i += 1
         elif arg in ("-H", "--harness"):
             if i + 1 < len(args):
@@ -424,7 +558,7 @@ def main() -> None:
         sys.exit(1)
 
     builder = HARNESS_REGISTRY[harness_name]["builder"]
-    cmd = builder(model_override, enable_tools, prompt)
+    cmd = builder(model_override, enable_tools, prompt, session_mode=session_mode)
 
     # Terminal output checking
     is_interactive_terminal = sys.stdout.isatty() and not raw_mode and HAS_RICH
