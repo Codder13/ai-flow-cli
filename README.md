@@ -1,4 +1,4 @@
-# ai-cli
+# ai-flow-cli
 
 > **Lightweight, fast terminal AI wrapper around modern coding harnesses with Rich markdown and math rendering.**
 
@@ -19,14 +19,21 @@ Wraps fast headless AI harnesses (`pi`, `omp`, `claude`, `codex`, `copilot`, `op
 
 ## 📦 Installation
 
-### 1. Recommended: Install via `mise`
+### 1. Arch Linux (AUR)
+```bash
+yay -S ai-flow-cli
+# or paru:
+paru -S ai-flow-cli
+```
+
+### 2. Recommended: Install via `mise`
 ```bash
 mise use -g pipx:ai-flow-cli
 # or via python backend:
 mise use -g pip:ai-flow-cli
 ```
 
-### 2. Install via PyPI (`pip` / `pipx` / `uv`)
+### 3. Install via PyPI (`pip` / `pipx` / `uv`)
 ```bash
 # Standard pip install:
 pip install --user ai-flow-cli
@@ -38,9 +45,9 @@ pipx install ai-flow-cli
 uv tool install ai-flow-cli
 ```
 
-### 3. One-Line Script Install
+### 4. One-Line Script Install
 ```bash
-curl -sSL https://raw.githubusercontent.com/Codder13/ai-cli/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Codder13/ai-flow-cli/main/install.sh | bash
 ```
 
 ---

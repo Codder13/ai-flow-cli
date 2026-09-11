@@ -24,9 +24,9 @@ classifiers = [
 ai = "ai_cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/Codder13/ai-cli"
-Repository = "https://github.com/Codder13/ai-cli.git"
-Issues = "https://github.com/Codder13/ai-cli/issues"
+Homepage = "https://github.com/Codder13/ai-flow-cli"
+Repository = "https://github.com/Codder13/ai-flow-cli.git"
+Issues = "https://github.com/Codder13/ai-flow-cli/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_cli"]
