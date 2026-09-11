@@ -1,6 +1,6 @@
 # Maintainer: Denis Bolba <https://github.com/Codder13>
 pkgname=ai-flow-cli
-pkgver=0.8.1
+pkgver=0.9.0
 pkgrel=1
 pkgdesc="Ultra-fast streaming AI CLI & agent for Unix terminals"
 arch=('any')

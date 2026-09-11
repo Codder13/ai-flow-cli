@@ -1,3 +1,3 @@
 """Zero-dependency, instant streaming AI CLI for Unix pipelines."""
 
-__version__ = "0.8.1"
+__version__ = "0.9.0"
