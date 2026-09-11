@@ -11,6 +11,7 @@ try:
     from rich.console import Console
     from rich.markdown import Markdown
     from rich.status import Status
+
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
@@ -29,6 +30,7 @@ except ImportError:
         render_mixed_markdown_with_math,
         sanitize_inline_math,
     )
+
 
 def print_help() -> None:
     help_text = """ai - Fast terminal AI powered by omp
@@ -127,7 +129,7 @@ def main() -> None:
         sys.exit(1)
 
     # Build omp command: omp -p --no-session
-    cmd = ["omp", "-p", "--no-session"]
+    cmd = ["pi", "-p", "--no-session"]
 
     if not enable_tools:
         cmd.append("--no-tools")
@@ -136,10 +138,12 @@ def main() -> None:
 
     # Prompt convention: use normal LaTeX display math ($$ ... $$) for equations,
     # but use normal units (~21,196 km) in conversational text.
-    cmd.extend([
-        "--append-system-prompt",
-        "Formatting instructions: For mathematical equations, display formulas, or matrices, use standard LaTeX block math ($$ ... $$ or \\[ ... \\]). For plain physical units, numbers, and measurements in text, write normal readable text without math dollar signs (e.g. ~21,196 km, 65.5 million tons, 200 km²)."
-    ])
+    cmd.extend(
+        [
+            "--append-system-prompt",
+            "Formatting instructions: For mathematical equations, display formulas, or matrices, use standard LaTeX block math ($$ ... $$ or \\[ ... \\]). For plain physical units, numbers, and measurements in text, write normal readable text without math dollar signs (e.g. ~21,196 km, 65.5 million tons, 200 km²).",
+        ]
+    )
 
     if model_override:
         cmd.extend(["--model", model_override])
