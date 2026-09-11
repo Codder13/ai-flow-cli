@@ -24,14 +24,14 @@ Show
 
 Sleep 400ms
 
-# 1. LaTeX Math rendering into clean Unicode
-Type "ai show the quadratic formula and gaussian integral in LaTeX"
+# 1. Everyday CLI query with syntax-highlighted code
+Type "ai how to find files larger than 100MB in current dir?"
 Sleep 300ms
 Enter
 Sleep 8s
 
 # 2. Terminal tab session continuity without quotes
-Type "ai now give me Euler identity"
+Type "ai now sort them by size"
 Sleep 300ms
 Enter
 Sleep 8s
@@ -75,5 +75,20 @@ Type "ai --raw calculate 2 to the power of 16 | tr -d ' ' | rev"
 Sleep 400ms
 Enter
 Sleep 6s
+
+Type "clear"
+Enter
+Sleep 400ms
+
+# 7. LaTeX Math rendering into clean terminal Unicode
+Type "ai show the quadratic formula and gaussian integral in LaTeX"
+Sleep 300ms
+Enter
+Sleep 8s
+
+Type "ai now give me Euler identity"
+Sleep 300ms
+Enter
+Sleep 8s
 
 Sleep 2s
