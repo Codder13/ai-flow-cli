@@ -12,7 +12,7 @@ Set WindowBar "Colorful"
 Set BorderRadius 8
 Set TypingSpeed 28ms
 
-# Setup clean environment
+# Reset session cleanly before starting
 Hide
 Type "export NO_COLOR="
 Enter
@@ -24,49 +24,53 @@ Show
 
 Sleep 400ms
 
-# --- 1. Everyday CLI Query (Unquoted, Rich Markdown) ---
-Type "ai how to find files larger than 100MB in current dir?"
+# 1. LaTeX Math rendering into clean Unicode
+Type "ai show the quadratic formula and gaussian integral in LaTeX"
 Sleep 300ms
 Enter
 Sleep 8s
 
-# --- 2. Automatic Tab Session Continuity ---
-Type "ai now sort them by size"
+# 2. Terminal tab session continuity without quotes
+Type "ai now give me Euler identity"
 Sleep 300ms
 Enter
-Sleep 9s
+Sleep 8s
 
-# --- 3. Pipeline / Stdin Code Transformation ---
 Type "clear"
 Enter
 Sleep 400ms
+
+# 3. Unix pipeline processing via stdin
 Type "echo 'def fib(n): return n if n < 2 else fib(n-1) + fib(n-2)' | ai make this iterative in python"
 Sleep 400ms
 Enter
 Sleep 8s
 
-# --- 4. Git Pipeline: Generating commit message from diff ---
 Type "clear"
 Enter
 Sleep 400ms
+
+# 4. Git workflow integration
 Type "git diff PKGBUILD | ai write a concise commit message"
 Sleep 400ms
 Enter
 Sleep 8s
 
-# --- 5. Harness Switcher on the Fly (-H omp / claude / pi) ---
 Type "clear"
 Enter
 Sleep 400ms
+
+# 5. On-the-fly harness switching
 Type "ai -H omp write a fast oneliner to find external IP"
 Sleep 400ms
 Enter
 Sleep 8s
 
-# --- 6. Raw Pipeline output (--raw into unix tools) ---
 Type "clear"
 Enter
 Sleep 400ms
+
+# 6. Raw Unix pipe composition
 Type "ai --raw calculate 2 to the power of 16 | tr -d ' ' | rev"
 Sleep 400ms
 Enter

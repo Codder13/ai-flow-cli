@@ -2061,3 +2061,12 @@ export function renderMath(text) {
 export function latexToUnicode(tex) {
   return Tw(tex);
 }
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (chunk) => { input += chunk; });
+  process.stdin.on("end", () => {
+    process.stdout.write(renderMath(input));
+  });
+}
