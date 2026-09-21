@@ -106,6 +106,138 @@ def has_existing_session(session_dir: str) -> bool:
     except Exception:
         return False
 
+def _extract_text_from_content(content: Any) -> str:
+    """Extract plain text from message content block (string, list of dicts, etc.)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+                elif item.get("text"):
+                    parts.append(item.get("text", ""))
+            elif isinstance(item, str):
+                parts.append(item)
+        return "\n".join(parts)
+    return str(content) if content else ""
+
+
+def load_terminal_session_history() -> List[Dict[str, str]]:
+    """Find and load conversation turns for the current terminal tab/pane across known harnesses."""
+    key = get_terminal_session_key()
+    session_files: List[Path] = []
+
+    # First check current session key in all harness session directories
+    if CACHE_DIR.is_dir():
+        for harness_dir in CACHE_DIR.iterdir():
+            if harness_dir.is_dir():
+                target = harness_dir / key
+                if target.is_dir():
+                    session_files.extend(target.glob("*.jsonl"))
+
+    # Fallback: if no session files found for this tab, check most recent session file anywhere in CACHE_DIR
+    if not session_files and CACHE_DIR.is_dir():
+        session_files = list(CACHE_DIR.glob("*/*/*.jsonl"))
+
+    if not session_files:
+        return []
+
+    # Pick the most recently modified session file
+    session_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    latest_file = session_files[0]
+
+    messages: List[Dict[str, str]] = []
+    try:
+        with open(latest_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except Exception:
+                    continue
+                if data.get("type") == "message":
+                    msg = data.get("message", {})
+                    role = msg.get("role")
+                    if role in ("user", "assistant"):
+                        text = _extract_text_from_content(msg.get("content"))
+                        if text and text.strip():
+                            messages.append({"role": role, "content": text.strip()})
+    except Exception:
+        pass
+
+    return messages
+
+
+def format_session_for_handoff() -> str:
+    """Format the current terminal session into a readable transcript for handoff."""
+    history = load_terminal_session_history()
+    if not history:
+        return ""
+
+    transcript = ["## Prior Conversation Context from `ai` session:\n"]
+    for msg in history:
+        role_label = "User" if msg["role"] == "user" else "Assistant"
+        transcript.append(f"### {role_label}:\n{msg['content']}\n")
+    return "\n".join(transcript)
+
+
+def execute_handoff(target_harness: Optional[str] = None, extra_instruction: str = "") -> None:
+    """Handoff the current session context to an interactive harness TUI."""
+    if not target_harness:
+        target_harness = resolve_harness(None)
+
+    if not shutil.which(target_harness):
+        sys.stderr.write(f"Error: Target harness '{target_harness}' executable not found in PATH.\n")
+        sys.exit(1)
+
+    context = format_session_for_handoff()
+    initial_prompt = ""
+    if context:
+        initial_prompt = f"{context}\n## Next Goal / Instruction:\n"
+        if extra_instruction:
+            initial_prompt += extra_instruction
+        else:
+            initial_prompt += "Continue assisting the user based on the conversation history above."
+    elif extra_instruction:
+        initial_prompt = extra_instruction
+
+    # Build interactive command to launch the harness TUI
+    if target_harness == "omp":
+        cmd = ["omp"]
+        if initial_prompt:
+            cmd.append(initial_prompt)
+    elif target_harness == "pi":
+        cmd = ["pi"]
+        if initial_prompt:
+            cmd.append(initial_prompt)
+    elif target_harness == "claude":
+        cmd = ["claude"]
+        if initial_prompt:
+            cmd.append(initial_prompt)
+    elif target_harness == "codex":
+        cmd = ["codex"]
+        if initial_prompt:
+            cmd.append(initial_prompt)
+    elif target_harness == "copilot":
+        cmd = ["copilot"]
+    elif target_harness == "opencode":
+        cmd = ["opencode"]
+        if initial_prompt:
+            cmd.append(initial_prompt)
+    else:
+        cmd = [target_harness]
+        if initial_prompt:
+            cmd.append(initial_prompt)
+
+    try:
+        os.execvp(cmd[0], cmd)
+    except Exception as e:
+        sys.stderr.write(f"Failed to handoff to {target_harness}: {e}\n")
+        sys.exit(1)
 
 def build_pi_cmd(
     model: Optional[str],
@@ -437,7 +569,8 @@ Options:
   --new                  Start a new session for this terminal (wipe previous context)
   --no-session           Run ephemerally without persisting or resuming session history
   --clear                Clear session history for current terminal tab and exit
-  -H, --harness <name>   Use specific harness ({supported})
+  -a, --agent <name>     Use specific agent harness ({supported})
+  -H, --handoff [name]   Handoff current session context to harness TUI
   --wizard               Interactive selector to choose and save default harness
   -m, --model <name>     Specify model name override
   -h, --help             Show this help message
@@ -452,7 +585,9 @@ Examples:
   ai --new "start a completely different topic"
   cat main.py | ai "explain what this code does"
   git diff | ai "write a concise commit message for this diff"
-  ai -H claude "how to optimize this query?"
+  ai -a claude "how to optimize this query?"
+  ai -H omp "continue this task and write the files"
+  ai -H claude
   ai --wizard
 """
     print(help_text)
@@ -489,6 +624,8 @@ def main() -> None:
     session_mode = "auto"
     model_override = None
     cli_harness = None
+    handoff_mode = False
+    handoff_harness = None
     prompt_words = []
 
     i = 0
@@ -506,15 +643,31 @@ def main() -> None:
         elif arg == "--no-session":
             session_mode = "none"
             i += 1
-        elif arg in ("-H", "--harness"):
+        elif arg in ("-a", "--agent", "--harness"):
             if i + 1 < len(args):
                 cli_harness = args[i + 1]
                 i += 2
             else:
                 prompt_words.append(arg)
                 i += 1
+        elif arg.startswith("--agent="):
+            cli_harness = arg.split("=", 1)[1]
+            i += 1
         elif arg.startswith("--harness="):
             cli_harness = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ("-H", "--handoff"):
+            handoff_mode = True
+            if i + 1 < len(args) and not args[i + 1].startswith("-") and args[i + 1].lower() in HARNESS_REGISTRY:
+                handoff_harness = args[i + 1].lower()
+                i += 2
+            else:
+                i += 1
+        elif arg.startswith("--handoff="):
+            handoff_mode = True
+            val = arg.split("=", 1)[1].strip().lower()
+            if val:
+                handoff_harness = val
             i += 1
         elif arg in ("-m", "--model"):
             if i + 1 < len(args):
@@ -529,13 +682,6 @@ def main() -> None:
         else:
             prompt_words.append(arg)
             i += 1
-
-    harness_name = resolve_harness(cli_harness, console=console)
-
-    if not shutil.which(harness_name):
-        sys.stderr.write(f"Error: Harness '{harness_name}' executable not found in PATH.\n")
-        sys.stderr.write(f"Please install '{harness_name}' or run 'ai --wizard' to switch.\n")
-        sys.exit(1)
 
     prompt = " ".join(prompt_words).strip()
 
@@ -553,10 +699,22 @@ def main() -> None:
         else:
             prompt = stdin_content
 
+    # Handoff mode: transfer context to harness TUI and open it
+    if handoff_mode:
+        target = handoff_harness or cli_harness or resolve_harness(None, console=console)
+        execute_handoff(target_harness=target, extra_instruction=prompt)
+        return
+
     if not prompt:
         print_help()
         sys.exit(1)
 
+    harness_name = resolve_harness(cli_harness, console=console)
+
+    if not shutil.which(harness_name):
+        sys.stderr.write(f"Error: Harness '{harness_name}' executable not found in PATH.\n")
+        sys.stderr.write(f"Please install '{harness_name}' or run 'ai --wizard' to switch.\n")
+        sys.exit(1)
     builder = HARNESS_REGISTRY[harness_name]["builder"]
     cmd = builder(model_override, enable_tools, prompt, session_mode=session_mode)
 

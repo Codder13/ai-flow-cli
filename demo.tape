@@ -61,7 +61,7 @@ Enter
 Sleep 400ms
 
 # 5. On-the-fly harness switching
-Type "ai -H omp write a fast oneliner to find external IP"
+Type "ai -a omp write a fast oneliner to find external IP"
 Sleep 400ms
 Enter
 Sleep 8s

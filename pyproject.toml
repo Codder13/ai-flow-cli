@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-flow-cli"
-version = "0.9.0"
+version = "0.10.0"
 description = "⚡ Fast, beautiful AI CLI wrapper around modern coding harnesses for Unix pipelines"
 readme = "README.md"
 dependencies = [

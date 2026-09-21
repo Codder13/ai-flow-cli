@@ -67,20 +67,29 @@ No quotes needed:
 ai explain what is eBPF in 3 bullet points
 ```
 
-### 3. Switching Harnesses on the Fly
-Use `--harness` or `-H` to override your default for a single query:
+### 3. Switching Agent Harnesses on the Fly
+Use `-a` or `--agent` (or `--harness`) to override your default agent harness for a single query:
 ```bash
-ai -H claude explain why rust ownership works this way
-ai -H omp write a bash script to backup my dotfiles
+ai -a claude explain why rust ownership works this way
+ai -a omp write a bash script to backup my dotfiles
 ```
 
-### 4. Enable Tools for Agentic Actions
+### 4. Handoff to Harness TUI (`-H / --handoff`)
+When a terminal query evolves into a deeper interactive agent session, hand off your entire conversation context to a full harness TUI:
+```bash
+# Handoff current context to default or specified harness TUI
+ai -H
+ai -H omp
+ai -H claude "Fix all broken unit tests across the whole workspace"
+```
+
+### 5. Enable Tools for Agentic Actions
 By default, queries run without tool side-effects for speed and safety. Pass `--tools` or `-t` to enable filesystem and command execution:
 ```bash
 ai --tools check git status and run tests
 ```
 
-### 5. Unix Pipelines & Input Redirection
+### 6. Unix Pipelines & Input Redirection
 When piped, `ai` preserves standard Unix conventions:
 ```bash
 git diff | ai explain these changes

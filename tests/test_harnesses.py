@@ -15,6 +15,9 @@ from ai_cli.main import (
     get_terminal_session_dir,
     clear_terminal_session,
     LATEX_SYSTEM_PROMPT,
+    format_session_for_handoff,
+    load_terminal_session_history,
+    execute_handoff,
 )
 
 def test_registry_contains_popular_harnesses():
@@ -94,3 +97,51 @@ def test_terminal_session_dir_and_clear():
 
     clear_terminal_session()
     assert not os.path.exists(session_dir)
+
+def test_format_session_for_handoff(monkeypatch, tmp_path):
+    dummy_cache = tmp_path / "sessions"
+    dummy_cache.mkdir()
+    pi_dir = dummy_cache / "pi" / "dummy_key"
+    pi_dir.mkdir(parents=True)
+    jsonl_file = pi_dir / "session.jsonl"
+    import json
+    with open(jsonl_file, "w") as f:
+        f.write(json.dumps({"type": "message", "message": {"role": "user", "content": [{"type": "text", "text": "hello from user"}]}}) + "\n")
+        f.write(json.dumps({"type": "message", "message": {"role": "assistant", "content": "hello from assistant"}}) + "\n")
+
+    monkeypatch.setattr("ai_cli.main.CACHE_DIR", dummy_cache)
+    monkeypatch.setattr("ai_cli.main.get_terminal_session_key", lambda: "dummy_key")
+
+    history = load_terminal_session_history()
+    assert len(history) == 2
+    assert history[0]["role"] == "user"
+    assert history[0]["content"] == "hello from user"
+    assert history[1]["role"] == "assistant"
+    assert history[1]["content"] == "hello from assistant"
+
+    formatted = format_session_for_handoff()
+    assert "Prior Conversation Context" in formatted
+    assert "hello from user" in formatted
+    assert "hello from assistant" in formatted
+
+def test_execute_handoff_command_formation(monkeypatch):
+    executed_args = []
+    def fake_execvp(file, args):
+        executed_args.append((file, args))
+    monkeypatch.setattr("os.execvp", fake_execvp)
+    monkeypatch.setattr("shutil.which", lambda name: f"/fake/bin/{name}")
+    monkeypatch.setattr("ai_cli.main.load_terminal_session_history", lambda: [{"role": "user", "content": "previous question"}])
+
+    execute_handoff("omp", "my extra instruction")
+
+    file, args = executed_args[0]
+    assert file == "omp"
+    assert "my extra instruction" in args[-1]
+    assert "previous question" in args[-1]
+
+    execute_handoff("claude", "")
+
+    file, args = executed_args[1]
+    assert file == "claude"
+    assert "previous question" in args[-1]
+
