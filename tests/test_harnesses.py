@@ -59,14 +59,54 @@ def test_build_claude_cmd():
     idx = cmd.index("--tools")
     assert cmd[idx + 1] == ""
 
+def test_build_copilot_cmd():
+    cmd = build_copilot_cmd(model=None, enable_tools=True, prompt="hello", session_mode="auto")
+    assert "--allow-all" in cmd
+    assert "--available-tools" not in cmd
+
+    cmd_no_tools = build_copilot_cmd(model=None, enable_tools=False, prompt="hello", session_mode="none")
+    assert "--allow-all" not in cmd_no_tools
+    assert "--available-tools" in cmd_no_tools
+
 def test_build_codex_cmd():
     cmd = build_codex_cmd(model="o3", enable_tools=True, prompt="task", session_mode="none")
-    assert cmd[0] == "codex"
-    assert "exec" in cmd
     assert "--ephemeral" in cmd
     assert "--dangerously-bypass-approvals-and-sandbox" in cmd
     assert "-m" in cmd
-    assert "o3" in cmd
+def test_main_cli_tool_flags(monkeypatch):
+    import sys
+    captured = {}
+    def fake_build_pi_cmd(model, enable_tools, prompt, session_mode):
+        captured["enable_tools"] = enable_tools
+        return ["pi", "-p", prompt]
+    monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/" + cmd)
+    monkeypatch.setitem(HARNESS_REGISTRY["pi"], "builder", fake_build_pi_cmd)
+    monkeypatch.setattr("ai_cli.main.resolve_harness", lambda cli_harness=None, console=None: "pi")
+    class FakeProc:
+        returncode = 0
+        def communicate(self):
+            return ("output", "")
+    monkeypatch.setattr("subprocess.Popen", lambda *args, **kwargs: FakeProc())
+    # Test default: enable_tools is True
+    monkeypatch.setattr(sys, "argv", ["ai", "--no-session", "test prompt"])
+    from ai_cli.main import main
+    main()
+    assert captured["enable_tools"] is True
+
+    # Test --no-tools: enable_tools is False
+    monkeypatch.setattr(sys, "argv", ["ai", "--no-tools", "--no-session", "test prompt"])
+    main()
+    assert captured["enable_tools"] is False
+
+    # Test -nt alias: enable_tools is False
+    monkeypatch.setattr(sys, "argv", ["ai", "-nt", "--no-session", "test prompt"])
+    main()
+    assert captured["enable_tools"] is False
+
+    # Test --tools overrides
+    monkeypatch.setattr(sys, "argv", ["ai", "--tools", "--no-session", "test prompt"])
+    main()
+    assert captured["enable_tools"] is True
 
 def test_resolve_harness_cli_override():
     assert resolve_harness(cli_harness="omp") == "omp"

@@ -83,12 +83,12 @@ ai -H omp
 ai -H claude "Fix all broken unit tests across the whole workspace"
 ```
 
-### 5. Enable Tools for Agentic Actions
-By default, queries run without tool side-effects for speed and safety. Pass `--tools` or `-t` to enable filesystem and command execution:
+### 5. Tool Execution (Default: Enabled) & Disabling Tools
+By default, queries run with tool execution enabled so the AI can inspect files and run commands. Pass `--no-tools` (or `-nt`) to prevent the AI from accessing tools:
 ```bash
-ai --tools check git status and run tests
+ai check git status and run tests
+ai --no-tools "explain how quicksort works"
 ```
-
 ### 6. Unix Pipelines & Input Redirection
 When piped, `ai` preserves standard Unix conventions:
 ```bash

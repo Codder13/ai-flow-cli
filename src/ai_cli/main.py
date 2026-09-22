@@ -241,8 +241,8 @@ def execute_handoff(target_harness: Optional[str] = None, extra_instruction: str
 
 def build_pi_cmd(
     model: Optional[str],
-    enable_tools: bool,
-    prompt: str,
+    enable_tools: bool = True,
+    prompt: str = "",
     session_mode: str = "auto",
 ) -> List[str]:
     cmd = ["pi", "-p"]
@@ -270,8 +270,8 @@ def build_pi_cmd(
 
 def build_omp_cmd(
     model: Optional[str],
-    enable_tools: bool,
-    prompt: str,
+    enable_tools: bool = True,
+    prompt: str = "",
     session_mode: str = "auto",
 ) -> List[str]:
     cmd = ["omp", "-p"]
@@ -301,8 +301,8 @@ def build_omp_cmd(
 
 def build_claude_cmd(
     model: Optional[str],
-    enable_tools: bool,
-    prompt: str,
+    enable_tools: bool = True,
+    prompt: str = "",
     session_mode: str = "auto",
 ) -> List[str]:
     cmd = ["claude", "-p"]
@@ -324,8 +324,8 @@ def build_claude_cmd(
 
 def build_codex_cmd(
     model: Optional[str],
-    enable_tools: bool,
-    prompt: str,
+    enable_tools: bool = True,
+    prompt: str = "",
     session_mode: str = "auto",
 ) -> List[str]:
     cmd = ["codex", "exec"]
@@ -344,8 +344,8 @@ def build_codex_cmd(
 
 def build_copilot_cmd(
     model: Optional[str],
-    enable_tools: bool,
-    prompt: str,
+    enable_tools: bool = True,
+    prompt: str = "",
     session_mode: str = "auto",
 ) -> List[str]:
     cmd = ["copilot", "-p", f"{LATEX_SYSTEM_PROMPT}\n\n{prompt}", "--silent"]
@@ -353,15 +353,16 @@ def build_copilot_cmd(
         cmd.append("--continue")
     if enable_tools:
         cmd.append("--allow-all")
+    else:
+        cmd.extend(["--available-tools", ""])
     if model:
         cmd.extend(["--model", model])
     return cmd
 
-
 def build_opencode_cmd(
     model: Optional[str],
-    enable_tools: bool,
-    prompt: str,
+    enable_tools: bool = True,
+    prompt: str = "",
     session_mode: str = "auto",
 ) -> List[str]:
     cmd = ["opencode", "run"]
@@ -565,7 +566,8 @@ Usage:
 
 Options:
   --raw                  Output raw text directly without markdown rendering
-  --tools                Enable tool execution / auto-approval in the harness
+  --no-tools, -nt        Disable tool execution so the AI has no access to tools
+  --tools, -t            Enable tool execution / auto-approval (default: enabled)
   --new                  Start a new session for this terminal (wipe previous context)
   --no-session           Run ephemerally without persisting or resuming session history
   --clear                Clear session history for current terminal tab and exit
@@ -620,7 +622,7 @@ def main() -> None:
 
     # Parse our custom options
     raw_mode = False
-    enable_tools = False
+    enable_tools = True
     session_mode = "auto"
     model_override = None
     cli_harness = None
@@ -634,8 +636,11 @@ def main() -> None:
         if arg == "--raw":
             raw_mode = True
             i += 1
-        elif arg == "--tools":
+        elif arg in ("--tools", "-t"):
             enable_tools = True
+            i += 1
+        elif arg in ("--no-tools", "-nt", "--without-tools"):
+            enable_tools = False
             i += 1
         elif arg == "--new":
             session_mode = "new"
